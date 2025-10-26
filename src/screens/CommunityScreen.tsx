@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS } from '../utils/constants';
@@ -38,47 +41,17 @@ interface ChatRoom {
 
 export const CommunityScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'feed' | 'chat' | 'mission'>('feed');
-  const [posts, setPosts] = useState<Post[]>([
-    {
-      id: '1',
-      user: '김러너',
-      content: '오늘 5km 완주! 🏃‍♂️',
-      likes: 12,
-      comments: 3,
-      time: '2시간 전',
-      type: 'running',
-      runningData: {
-        distance: 5.0,
-        time: '25:30',
-        calories: 250,
-      },
-    },
-    {
-      id: '2',
-      user: '박스터디',
-      content: '공부하고 러닝하는 하루! 모두 화이팅! 💪',
-      likes: 8,
-      comments: 1,
-      time: '4시간 전',
-      type: 'general',
-    },
-    {
-      id: '3',
-      user: '이달리기',
-      content: '새로운 코스 발견! 정말 좋네요 🌸',
-      likes: 15,
-      comments: 5,
-      time: '6시간 전',
-      type: 'running',
-      runningData: {
-        distance: 3.2,
-        time: '18:45',
-        calories: 160,
-      },
-    },
-  ]);
-
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [postContent, setPostContent] = useState('');
+  const [postDistance, setPostDistance] = useState('');
+  const [postTime, setPostTime] = useState('');
+  const [postCalories, setPostCalories] = useState('');
+  const [postType, setPostType] = useState<'general' | 'running'>('general');
+  const [currentUser] = useState('내 프로필');
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [chatRooms] = useState<ChatRoom[]>([
     {
       id: '1',
       name: 'KAIST 러닝 크루',
@@ -108,6 +81,104 @@ export const CommunityScreen: React.FC = () => {
   const [studyTime, setStudyTime] = useState(0);
   const [isStudying, setIsStudying] = useState(false);
   const [studyTimer, setStudyTimer] = useState(0);
+
+  useEffect(() => {
+    loadPostsData();
+  }, []);
+
+  const formatTime = (timestamp: number): string => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return '방금 전';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}분 전`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}시간 전`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}일 전`;
+    return `${Math.floor(seconds / 604800)}주 전`;
+  };
+
+  const loadPostsData = () => {
+    // 초기 데이터 추가
+    const defaultPosts: Post[] = [
+      {
+        id: '1',
+        user: '김러너',
+        content: '오늘 5km 완주! 🏃‍♂️',
+        likes: 12,
+        comments: 3,
+        time: '2시간 전',
+        type: 'running',
+        runningData: {
+          distance: 5.0,
+          time: '25:30',
+          calories: 250,
+        },
+      },
+      {
+        id: '2',
+        user: '박스터디',
+        content: '공부하고 러닝하는 하루! 모두 화이팅! 💪',
+        likes: 8,
+        comments: 1,
+        time: '4시간 전',
+        type: 'general',
+      },
+      {
+        id: '3',
+        user: '이달리기',
+        content: '새로운 코스 발견! 정말 좋네요 🌸',
+        likes: 15,
+        comments: 5,
+        time: '6시간 전',
+        type: 'running',
+        runningData: {
+          distance: 3.2,
+          time: '18:45',
+          calories: 160,
+        },
+      },
+    ];
+    
+    setPosts(defaultPosts);
+    setIsLoading(false);
+  };
+
+  const handleCreatePost = () => {
+    if (!postContent.trim()) {
+      Alert.alert('알림', '게시물 내용을 입력해주세요.');
+      return;
+    }
+
+    if (postType === 'running' && (!postDistance || !postTime || !postCalories)) {
+      Alert.alert('알림', '러닝 데이터를 모두 입력해주세요.');
+      return;
+    }
+
+    const newPost: Post = {
+      id: Date.now().toString(),
+      user: currentUser,
+      content: postContent,
+      likes: 0,
+      comments: 0,
+      time: '방금 전',
+      type: postType,
+      runningData: postType === 'running' ? {
+        distance: parseFloat(postDistance),
+        time: postTime,
+        calories: parseInt(postCalories),
+      } : undefined,
+    };
+
+    setPosts([newPost, ...posts]);
+    
+    // 모달 초기화
+    setPostContent('');
+    setPostDistance('');
+    setPostTime('');
+    setPostCalories('');
+    setPostType('general');
+    setShowPostModal(false);
+
+    Alert.alert('성공', '게시물이 업로드되었습니다!');
+  };
 
   const handleLikePost = (postId: string) => {
     setPosts(posts.map(post => 
@@ -143,7 +214,7 @@ export const CommunityScreen: React.FC = () => {
       <View style={styles.createPostContainer}>
         <TouchableOpacity
           style={styles.createPostButton}
-          onPress={() => Alert.alert('게시물 작성', '새 게시물을 작성합니다')}
+          onPress={() => setShowPostModal(true)}
         >
           <Ionicons name="add-circle" size={24} color={COLORS.base} />
           <Text style={styles.createPostText}>게시물 작성</Text>
@@ -375,6 +446,97 @@ export const CommunityScreen: React.FC = () => {
       {activeTab === 'feed' && renderSocialFeed()}
       {activeTab === 'chat' && renderChatPage()}
       {activeTab === 'mission' && renderStudyMission()}
+
+      {/* 게시물 작성 모달 */}
+      <Modal
+        visible={showPostModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPostModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>게시물 작성</Text>
+              <TouchableOpacity
+                onPress={() => setShowPostModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView 
+              style={styles.modalBody}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.postTypeContainer}>
+                <TouchableOpacity
+                  style={[styles.postTypeButton, postType === 'general' && styles.activePostTypeButton]}
+                  onPress={() => setPostType('general')}
+                >
+                  <Text style={[styles.postTypeText, postType === 'general' && styles.activePostTypeText]}>
+                    일반 게시물
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.postTypeButton, postType === 'running' && styles.activePostTypeButton]}
+                  onPress={() => setPostType('running')}
+                >
+                  <Text style={[styles.postTypeText, postType === 'running' && styles.activePostTypeText]}>
+                    러닝 기록
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={styles.postContentInput}
+                placeholder="무슨 생각을 하고 계신가요?"
+                value={postContent}
+                onChangeText={setPostContent}
+                multiline
+                numberOfLines={6}
+                textAlignVertical="top"
+              />
+
+              {postType === 'running' && (
+                <View style={styles.runningInputContainer}>
+                  <TextInput
+                    style={styles.runningInput}
+                    placeholder="거리 (km)"
+                    value={postDistance}
+                    onChangeText={setPostDistance}
+                    keyboardType="decimal-pad"
+                  />
+                  <TextInput
+                    style={styles.runningInput}
+                    placeholder="시간 (예: 25:30)"
+                    value={postTime}
+                    onChangeText={setPostTime}
+                  />
+                  <TextInput
+                    style={styles.runningInput}
+                    placeholder="칼로리"
+                    value={postCalories}
+                    onChangeText={setPostCalories}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.postButton}
+                onPress={handleCreatePost}
+              >
+                <Text style={styles.postButtonText}>업로드</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -757,5 +919,95 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.text,
     marginLeft: SIZES.sm,
+  },
+  
+  // 모달 스타일
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: SIZES.lg,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SIZES.lg,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  closeButton: {
+    padding: SIZES.xs,
+  },
+  modalBody: {
+    paddingBottom: SIZES.xl,
+    maxHeight: '100%',
+  },
+  postTypeContainer: {
+    flexDirection: 'row',
+    gap: SIZES.sm,
+    marginBottom: SIZES.lg,
+  },
+  postTypeButton: {
+    flex: 1,
+    paddingVertical: SIZES.md,
+    paddingHorizontal: SIZES.lg,
+    borderRadius: 12,
+    backgroundColor: COLORS.lightGray,
+    alignItems: 'center',
+  },
+  activePostTypeButton: {
+    backgroundColor: COLORS.base,
+  },
+  postTypeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: COLORS.textSecondary,
+  },
+  activePostTypeText: {
+    color: COLORS.surface,
+  },
+  postContentInput: {
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 12,
+    padding: SIZES.md,
+    fontSize: 16,
+    color: COLORS.text,
+    minHeight: 120,
+    marginBottom: SIZES.lg,
+  },
+  runningInputContainer: {
+    gap: SIZES.md,
+    marginBottom: SIZES.lg,
+  },
+  runningInput: {
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 12,
+    padding: SIZES.md,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  postButton: {
+    backgroundColor: COLORS.base,
+    borderRadius: 12,
+    paddingVertical: SIZES.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.surface,
   },
 });
