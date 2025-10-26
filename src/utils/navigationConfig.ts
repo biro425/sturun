@@ -3,9 +3,9 @@ import { TabItem } from '../components/BottomNavigation';
 export const NAVIGATION_TABS: TabItem[] = [
   {
     id: 'route',
-    title: '경로',
-    icon: 'map-outline',
-    activeIcon: 'map',
+    title: '러닝',
+    icon: 'footsteps-outline',
+    activeIcon: 'footsteps',
   },
   {
     id: 'ranking',
@@ -20,10 +20,10 @@ export const NAVIGATION_TABS: TabItem[] = [
     activeIcon: 'home',
   },
   {
-    id: 'history',
-    title: '기록',
-    icon: 'time-outline',
-    activeIcon: 'time',
+    id: 'community',
+    title: '커뮤니티',
+    icon: 'people-outline',
+    activeIcon: 'people',
   },
   {
     id: 'profile',

@@ -4,7 +4,7 @@ import { View, StyleSheet } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { RankingScreen } from './src/screens/RankingScreen';
 import { RouteScreen } from './src/screens/RouteScreen';
-import { HistoryScreen } from './src/screens/HistoryScreen';
+import { CommunityScreen } from './src/screens/CommunityScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { BottomNavigation } from './src/components/BottomNavigation';
@@ -26,8 +26,8 @@ export default function App() {
         return <RankingScreen />;
       case 'route':
         return <RouteScreen />;
-      case 'history':
-        return <HistoryScreen />;
+      case 'community':
+        return <CommunityScreen />;
       case 'profile':
         return <ProfileScreen onNavigateToLogin={handleNavigateToLogin} />;
       case 'login':

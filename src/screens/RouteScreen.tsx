@@ -1,191 +1,233 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
-  ScrollView,
   TouchableOpacity,
-  TextInput,
+  Alert,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS } from '../utils/constants';
-import { Button } from '../components/Button';
+
+interface RunningData {
+  distance: number; // km
+  speed: number; // km/h
+  time: number; // seconds
+  calories: number;
+  pace: number; // min/km
+}
 
 export const RouteScreen: React.FC = () => {
-  const [startLocation, setStartLocation] = useState('');
-  const [endLocation, setEndLocation] = useState('');
-  const [selectedMode, setSelectedMode] = useState<'walking' | 'cycling' | 'driving'>('walking');
+  const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [runningData, setRunningData] = useState<RunningData>({
+    distance: 0,
+    speed: 0,
+    time: 0,
+    calories: 0,
+    pace: 0,
+  });
 
-  const transportModes = [
-    { id: 'walking', title: '도보', icon: 'walk' },
-    { id: 'cycling', title: '자전거', icon: 'bicycle' },
-    { id: 'driving', title: '자동차', icon: 'car' },
-  ] as const;
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const pausedTimeRef = useRef<number>(0);
 
-  const handleStartLocationPress = () => {
-    console.log('출발지 선택');
+  // 타이머 업데이트
+  useEffect(() => {
+    if (isRunning && !isPaused) {
+      intervalRef.current = setInterval(() => {
+        const currentTime = Date.now();
+        const elapsedTime = Math.floor((currentTime - startTimeRef.current - pausedTimeRef.current) / 1000);
+        
+        // 시뮬레이션된 러닝 데이터 업데이트
+        const simulatedDistance = elapsedTime * 0.003; // 약 10.8km/h 속도로 시뮬레이션
+        const simulatedSpeed = simulatedDistance > 0 ? (simulatedDistance * 3600) / elapsedTime : 0;
+        const simulatedPace = simulatedSpeed > 0 ? 60 / simulatedSpeed : 0;
+        const simulatedCalories = simulatedDistance * 50; // 대략적인 칼로리 계산
+
+        setRunningData({
+          distance: Math.round(simulatedDistance * 100) / 100,
+          speed: Math.round(simulatedSpeed * 10) / 10,
+          time: elapsedTime,
+          calories: Math.round(simulatedCalories),
+          pace: Math.round(simulatedPace * 10) / 10,
+        });
+      }, 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [isRunning, isPaused]);
+
+  const handleStartRunning = () => {
+    setIsRunning(true);
+    setIsPaused(false);
+    startTimeRef.current = Date.now();
+    pausedTimeRef.current = 0;
+    setRunningData({
+      distance: 0,
+      speed: 0,
+      time: 0,
+      calories: 0,
+      pace: 0,
+    });
   };
 
-  const handleEndLocationPress = () => {
-    console.log('도착지 선택');
+  const handlePauseRunning = () => {
+    if (isPaused) {
+      // 재시작
+      setIsPaused(false);
+      startTimeRef.current = Date.now() - (runningData.time * 1000);
+    } else {
+      // 일시정지
+      setIsPaused(true);
+      pausedTimeRef.current += Date.now() - startTimeRef.current - (runningData.time * 1000);
+    }
   };
 
-  const handleRouteSearch = () => {
-    console.log('경로 검색:', { startLocation, endLocation, selectedMode });
+  const handleStopRunning = () => {
+    Alert.alert(
+      '러닝 종료',
+      `총 거리: ${runningData.distance}km\n총 시간: ${formatTime(runningData.time)}\n소모 칼로리: ${runningData.calories}kcal\n\n러닝을 종료하시겠습니까?`,
+      [
+        { text: '취소', style: 'cancel' },
+        { 
+          text: '종료', 
+          style: 'destructive',
+          onPress: () => {
+            setIsRunning(false);
+            setIsPaused(false);
+            setRunningData({
+              distance: 0,
+              speed: 0,
+              time: 0,
+              calories: 0,
+              pace: 0,
+            });
+          }
+        }
+      ]
+    );
+  };
+
+  const formatTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatDistance = (distance: number): string => {
+    if (distance < 1) {
+      return `${Math.round(distance * 1000)}m`;
+    }
+    return `${distance.toFixed(2)}km`;
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>경로 설정</Text>
-          <Text style={styles.subtitle}>최적의 경로를 찾아보세요</Text>
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <Text style={styles.title}>러닝 시작</Text>
+        <Text style={styles.subtitle}>
+          {isRunning ? (isPaused ? '일시정지됨' : '러닝 중') : '러닝을 시작하세요'}
+        </Text>
+      </View>
+
+      {/* 실시간 정보 표시 */}
+      <View style={styles.metricsContainer}>
+        <View style={styles.metricRow}>
+          <View style={styles.metricItem}>
+            <Text style={styles.metricValue}>{formatDistance(runningData.distance)}</Text>
+            <Text style={styles.metricLabel}>거리</Text>
+          </View>
+          <View style={styles.metricItem}>
+            <Text style={styles.metricValue}>{runningData.speed.toFixed(1)}</Text>
+            <Text style={styles.metricLabel}>속도 (km/h)</Text>
+          </View>
+        </View>
+        
+        <View style={styles.metricRow}>
+          <View style={styles.metricItem}>
+            <Text style={styles.metricValue}>{formatTime(runningData.time)}</Text>
+            <Text style={styles.metricLabel}>시간</Text>
+          </View>
+          <View style={styles.metricItem}>
+            <Text style={styles.metricValue}>{runningData.calories}</Text>
+            <Text style={styles.metricLabel}>칼로리</Text>
+          </View>
         </View>
 
-        <View style={styles.locationContainer}>
+        <View style={styles.paceContainer}>
+          <Text style={styles.paceValue}>{runningData.pace.toFixed(1)}</Text>
+          <Text style={styles.paceLabel}>페이스 (min/km)</Text>
+        </View>
+      </View>
+
+      {/* 지도 영역 (시뮬레이션) */}
+      <View style={styles.mapContainer}>
+        <View style={styles.mapPlaceholder}>
+          <Ionicons name="map" size={60} color={COLORS.textSecondary} />
+          <Text style={styles.mapText}>GPS 기반 실시간 이동 경로</Text>
+          <Text style={styles.mapSubtext}>
+            {isRunning ? '러닝 경로가 표시됩니다' : '러닝을 시작하면 경로가 표시됩니다'}
+          </Text>
+        </View>
+      </View>
+
+      {/* 컨트롤 버튼들 */}
+      <View style={styles.controlsContainer}>
+        {!isRunning ? (
           <TouchableOpacity
-            style={styles.locationInput}
-            onPress={handleStartLocationPress}
-            activeOpacity={0.7}
+            style={styles.startButton}
+            onPress={handleStartRunning}
+            activeOpacity={0.8}
           >
-            <View style={styles.locationIconContainer}>
-              <Ionicons
-                name="location"
-                size={20}
-                color={COLORS.success}
-              />
-            </View>
-            <View style={styles.locationTextContainer}>
-              <Text style={styles.locationLabel}>출발지</Text>
-              <Text style={styles.locationText}>
-                {startLocation || '출발지를 선택하세요'}
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={COLORS.textSecondary}
-            />
+            <Ionicons name="play" size={30} color={COLORS.surface} />
+            <Text style={styles.startButtonText}>러닝 시작</Text>
           </TouchableOpacity>
-
-          <View style={styles.arrowContainer}>
-            <Ionicons
-              name="arrow-down"
-              size={24}
-              color={COLORS.textSecondary}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.locationInput}
-            onPress={handleEndLocationPress}
-            activeOpacity={0.7}
-          >
-            <View style={styles.locationIconContainer}>
-              <Ionicons
-                name="location"
-                size={20}
-                color={COLORS.error}
+        ) : (
+          <View style={styles.runningControls}>
+            <TouchableOpacity
+              style={styles.pauseButton}
+              onPress={handlePauseRunning}
+              activeOpacity={0.8}
+            >
+              <Ionicons 
+                name={isPaused ? "play" : "pause"} 
+                size={24} 
+                color={COLORS.surface} 
               />
-            </View>
-            <View style={styles.locationTextContainer}>
-              <Text style={styles.locationLabel}>도착지</Text>
-              <Text style={styles.locationText}>
-                {endLocation || '도착지를 선택하세요'}
+              <Text style={styles.controlButtonText}>
+                {isPaused ? '재시작' : '일시정지'}
               </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.transportContainer}>
-          <Text style={styles.sectionTitle}>이동 수단</Text>
-          <View style={styles.transportModes}>
-            {transportModes.map((mode) => (
-              <TouchableOpacity
-                key={mode.id}
-                style={[
-                  styles.transportMode,
-                  selectedMode === mode.id && styles.selectedTransportMode,
-                ]}
-                onPress={() => setSelectedMode(mode.id)}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={mode.icon as any}
-                  size={24}
-                  color={selectedMode === mode.id ? COLORS.primary : COLORS.textSecondary}
-                />
-                <Text
-                  style={[
-                    styles.transportModeText,
-                    selectedMode === mode.id && styles.selectedTransportModeText,
-                  ]}
-                >
-                  {mode.title}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.searchContainer}>
-          <Button
-            title="경로 검색"
-            onPress={handleRouteSearch}
-            variant="primary"
-            size="large"
-            disabled={!startLocation || !endLocation}
-          />
-        </View>
-
-        <View style={styles.quickActionsContainer}>
-          <Text style={styles.sectionTitle}>빠른 설정</Text>
-          <View style={styles.quickActions}>
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => console.log('현재 위치로 설정')}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="locate"
-                size={20}
-                color={COLORS.primary}
-              />
-              <Text style={styles.quickActionText}>현재 위치</Text>
             </TouchableOpacity>
+            
             <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => console.log('집으로 설정')}
-              activeOpacity={0.7}
+              style={styles.stopButton}
+              onPress={handleStopRunning}
+              activeOpacity={0.8}
             >
-              <Ionicons
-                name="home"
-                size={20}
-                color={COLORS.primary}
-              />
-              <Text style={styles.quickActionText}>집</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => console.log('회사로 설정')}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="business"
-                size={20}
-                color={COLORS.primary}
-              />
-              <Text style={styles.quickActionText}>회사</Text>
+              <Ionicons name="stop" size={24} color={COLORS.surface} />
+              <Text style={styles.controlButtonText}>종료</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </ScrollView>
+        )}
+      </View>
     </SafeAreaView>
   );
 };
@@ -195,122 +237,154 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  scrollContent: {
-    flexGrow: 1,
-    padding: SIZES.lg,
-    paddingBottom: SIZES.xxl,
-  },
   header: {
     alignItems: 'center',
-    marginBottom: SIZES.xl,
+    paddingHorizontal: SIZES.lg,
+    paddingVertical: SIZES.lg,
+    backgroundColor: COLORS.surface,
   },
   title: {
-    fontSize: 28,
-    fontFamily: FONTS.bold,
+    fontSize: 24,
     fontWeight: 'bold',
     color: COLORS.text,
-    textAlign: 'center',
-    marginBottom: SIZES.md,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  locationContainer: {
-    backgroundColor: COLORS.surface,
-    borderRadius: SIZES.md,
-    padding: SIZES.lg,
-    marginBottom: SIZES.lg,
-  },
-  locationInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SIZES.md,
-  },
-  locationIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SIZES.md,
-  },
-  locationTextContainer: {
-    flex: 1,
-  },
-  locationLabel: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
     marginBottom: SIZES.xs,
   },
-  locationText: {
-    fontSize: 16,
-    fontFamily: FONTS.medium,
-    color: COLORS.text,
+  subtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
   },
-  arrowContainer: {
-    alignItems: 'center',
-    paddingVertical: SIZES.sm,
+  metricsContainer: {
+    backgroundColor: COLORS.surface,
+    margin: SIZES.lg,
+    borderRadius: 16,
+    padding: SIZES.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  transportContainer: {
+  metricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     marginBottom: SIZES.lg,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: FONTS.bold,
+  metricItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  metricValue: {
+    fontSize: 28,
     fontWeight: 'bold',
     color: COLORS.text,
-    marginBottom: SIZES.md,
+    marginBottom: SIZES.xs,
   },
-  transportModes: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    borderRadius: SIZES.md,
-    padding: SIZES.sm,
+  metricLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
   },
-  transportMode: {
-    flex: 1,
+  paceContainer: {
     alignItems: 'center',
-    paddingVertical: SIZES.md,
-    borderRadius: SIZES.sm,
+    paddingTop: SIZES.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightGray,
   },
-  selectedTransportMode: {
-    backgroundColor: COLORS.primary,
+  paceValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: COLORS.base,
+    marginBottom: SIZES.xs,
   },
-  transportModeText: {
+  paceLabel: {
     fontSize: 14,
-    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+  },
+  mapContainer: {
+    flex: 1,
+    marginHorizontal: SIZES.lg,
+    marginBottom: SIZES.lg,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  mapPlaceholder: {
+    flex: 1,
+    backgroundColor: COLORS.lightGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SIZES.xl,
+  },
+  mapText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginTop: SIZES.md,
+    textAlign: 'center',
+  },
+  mapSubtext: {
+    fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: SIZES.xs,
+    textAlign: 'center',
   },
-  selectedTransportModeText: {
-    color: COLORS.surface,
+  controlsContainer: {
+    paddingHorizontal: SIZES.lg,
+    paddingBottom: SIZES.lg,
   },
-  searchContainer: {
-    marginBottom: SIZES.lg,
-  },
-  quickActionsContainer: {
-    marginBottom: SIZES.lg,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    borderRadius: SIZES.md,
-    padding: SIZES.md,
-  },
-  quickAction: {
-    flex: 1,
+  startButton: {
+    backgroundColor: COLORS.base,
+    borderRadius: 16,
+    paddingVertical: SIZES.lg,
     alignItems: 'center',
-    paddingVertical: SIZES.sm,
+    justifyContent: 'center',
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  quickActionText: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    color: COLORS.primary,
-    marginTop: SIZES.xs,
+  startButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.surface,
+    marginLeft: SIZES.sm,
+  },
+  runningControls: {
+    flexDirection: 'row',
+    gap: SIZES.md,
+  },
+  pauseButton: {
+    flex: 1,
+    backgroundColor: COLORS.warning,
+    borderRadius: 16,
+    paddingVertical: SIZES.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  stopButton: {
+    flex: 1,
+    backgroundColor: COLORS.error,
+    borderRadius: 16,
+    paddingVertical: SIZES.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  controlButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.surface,
+    marginLeft: SIZES.xs,
   },
 });
