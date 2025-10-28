@@ -10,6 +10,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS } from '../utils/constants';
+import { WebView } from 'react-native-webview';
+// @ts-ignore
+import { kakaoMapService } from '../services/kakaoMapService';
+import * as Location from 'expo-location';
 
 interface RunningData {
   distance: number; // km
@@ -29,10 +33,13 @@ export const RouteScreen: React.FC = () => {
     calories: 0,
     pace: 0,
   });
+  const [mapHTML, setMapHTML] = useState<string>('');
+  const [pathCoords, setPathCoords] = useState<Array<{ latitude: number; longitude: number }>>([]);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
   const pausedTimeRef = useRef<number>(0);
+  const locationWatchRef = useRef<Location.LocationSubscription | null>(null);
 
   // 타이머 업데이트
   useEffect(() => {
@@ -69,6 +76,95 @@ export const RouteScreen: React.FC = () => {
     };
   }, [isRunning, isPaused]);
 
+  // 카카오맵: 기본 지도를 표시 (랜드마크 없을 때 기본 위치로 센터)
+  useEffect(() => {
+    try {
+      const html = kakaoMapService.generateMapHTML([]);
+      setMapHTML(html);
+    } catch (e) {
+      // noop: 에러 시 기존 placeholder 유지
+    }
+  }, []);
+
+  // 현재 위치를 얻어 지도에 "내 위치" 마커 표시
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          return;
+        }
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const userLandmark = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          name: '내 위치',
+          category: '현재위치',
+        } as any;
+        const html = kakaoMapService.generateMapHTML([userLandmark]);
+        setMapHTML(html);
+      } catch (e) {
+        // 위치 못 얻으면 기본 지도 유지
+      }
+    })();
+    return () => {
+      if (locationWatchRef.current) {
+        locationWatchRef.current.remove();
+        locationWatchRef.current = null;
+      }
+    };
+  }, []);
+
+  const updateMapWithPath = (coords: Array<{ latitude: number; longitude: number }>) => {
+    try {
+      if (!coords || coords.length === 0) return;
+      const landmarks = coords.map((c, idx) => ({
+        latitude: c.latitude,
+        longitude: c.longitude,
+        name: idx === 0 ? '출발' : idx === coords.length - 1 ? '현재 위치' : `포인트 ${idx}`,
+        category: '경로',
+      })) as any[];
+      const html = kakaoMapService.generateMapHTML(landmarks);
+      setMapHTML(html);
+    } catch (_) {
+      // ignore
+    }
+  };
+
+  const startLocationWatch = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      if (locationWatchRef.current) {
+        locationWatchRef.current.remove();
+        locationWatchRef.current = null;
+      }
+      locationWatchRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          distanceInterval: 10, // 10m마다 업데이트
+          timeInterval: 3000, // 3초 최소 간격
+        },
+        (loc) => {
+          setPathCoords((prev) => {
+            const next = prev.concat({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+            updateMapWithPath(next);
+            return next;
+          });
+        }
+      );
+    } catch (_) {
+      // ignore
+    }
+  };
+
+  const stopLocationWatch = () => {
+    if (locationWatchRef.current) {
+      locationWatchRef.current.remove();
+      locationWatchRef.current = null;
+    }
+  };
+
   const handleStartRunning = () => {
     setIsRunning(true);
     setIsPaused(false);
@@ -81,6 +177,8 @@ export const RouteScreen: React.FC = () => {
       calories: 0,
       pace: 0,
     });
+    setPathCoords([]);
+    startLocationWatch();
   };
 
   const handlePauseRunning = () => {
@@ -88,10 +186,12 @@ export const RouteScreen: React.FC = () => {
       // 재시작
       setIsPaused(false);
       startTimeRef.current = Date.now() - (runningData.time * 1000);
+      startLocationWatch();
     } else {
       // 일시정지
       setIsPaused(true);
       pausedTimeRef.current += Date.now() - startTimeRef.current - (runningData.time * 1000);
+      stopLocationWatch();
     }
   };
 
@@ -107,6 +207,7 @@ export const RouteScreen: React.FC = () => {
           onPress: () => {
             setIsRunning(false);
             setIsPaused(false);
+            stopLocationWatch();
             setRunningData({
               distance: 0,
               speed: 0,
@@ -114,6 +215,11 @@ export const RouteScreen: React.FC = () => {
               calories: 0,
               pace: 0,
             });
+            setPathCoords([]);
+            try {
+              const html = kakaoMapService.generateMapHTML([]);
+              setMapHTML(html);
+            } catch (_) {}
           }
         }
       ]
@@ -178,15 +284,26 @@ export const RouteScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* 지도 영역 (시뮬레이션) */}
+      {/* 지도 영역: 카카오맵 WebView */}
       <View style={styles.mapContainer}>
-        <View style={styles.mapPlaceholder}>
-          <Ionicons name="map" size={60} color={COLORS.textSecondary} />
-          <Text style={styles.mapText}>GPS 기반 실시간 이동 경로</Text>
-          <Text style={styles.mapSubtext}>
-            {isRunning ? '러닝 경로가 표시됩니다' : '러닝을 시작하면 경로가 표시됩니다'}
-          </Text>
-        </View>
+        {mapHTML ? (
+          <WebView
+            source={{ html: mapHTML }}
+            style={{ flex: 1 }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            scalesPageToFit={true}
+          />
+        ) : (
+          <View style={styles.mapPlaceholder}>
+            <Ionicons name="map" size={60} color={COLORS.textSecondary} />
+            <Text style={styles.mapText}>GPS 기반 실시간 이동 경로</Text>
+            <Text style={styles.mapSubtext}>
+              {isRunning ? '러닝 경로가 표시됩니다' : '러닝을 시작하면 경로가 표시됩니다'}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* 컨트롤 버튼들 */}

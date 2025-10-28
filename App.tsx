@@ -7,15 +7,25 @@ import { RouteScreen } from './src/screens/RouteScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { AILandmarkScreen } from './src/screens/AILandmarkScreen';
 import { BottomNavigation } from './src/components/BottomNavigation';
 import { NAVIGATION_TABS } from './src/utils/navigationConfig';
 import { COLORS } from './src/utils/constants';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
+  const [showAILandmark, setShowAILandmark] = useState(false);
 
   const handleNavigateToLogin = () => {
     setActiveTab('login');
+  };
+
+  const handleAILandmarkPress = () => {
+    setShowAILandmark(true);
+  };
+
+  const handleCloseAILandmark = () => {
+    setShowAILandmark(false);
   };
 
   const renderScreen = () => {
@@ -40,13 +50,18 @@ export default function App() {
   return (
     <View style={styles.container}>
       <View style={styles.screenContainer}>
-        {renderScreen()}
+        {showAILandmark ? (
+          <AILandmarkScreen onClose={handleCloseAILandmark} />
+        ) : (
+          renderScreen()
+        )}
       </View>
-      {activeTab !== 'login' && (
+      {activeTab !== 'login' && !showAILandmark && (
         <BottomNavigation
           tabs={NAVIGATION_TABS}
           activeTab={activeTab}
           onTabPress={setActiveTab}
+          onAILandmarkPress={handleAILandmarkPress}
         />
       )}
       <StatusBar style="auto" />
