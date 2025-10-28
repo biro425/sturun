@@ -1,7 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// apiConfig.js 내용을 이 파일로 통합
-const GEMINI_API_KEY = 'AIzaSyD_E38oM4m7SoaVy-7v9L_BlcnaFvqUsf4'; // 필요 시 환경변수로 교체
+const GEMINI_API_KEY = 'AIzaSyAG7kTqnsO0x3C2YSPPAXmKyMgm68Ouf08';
 
 const LANDMARK_PROMPT_TEMPLATE = `
 당신은 한국의 관광지와 랜드마크 전문가입니다. 
@@ -42,18 +39,66 @@ const LANDMARK_PROMPT_TEMPLATE = `
 `;
 
 class GeminiService {
-  constructor() {
-    this.client = new GoogleGenerativeAI(GEMINI_API_KEY);
-    this.modelName = 'gemini-1.5-flash';
-    this.model = this.client.getGenerativeModel({ model: this.modelName });
+  async getAvailableModel() {
+    // 사용 가능한 모델 목록 (우선순위 순서)
+    const models = ['gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+    
+    for (const model of models) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+        // 간단한 헤드 체크로 모델 사용 가능 여부 확인
+        const testRes = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: 'test' }] }],
+          }),
+        });
+        
+        // 404가 아니면 모델 사용 가능
+        if (testRes.status !== 404) {
+          console.log('사용 가능한 모델:', model);
+          return model;
+        }
+      } catch (e) {
+        // 다음 모델 시도
+        continue;
+      }
+    }
+    
+    // 모두 실패하면 기본값 반환
+    console.warn('모든 모델 시도 실패, gemini-pro 사용');
+    return 'gemini-pro';
   }
 
   async getLandmarkRecommendations(preferences) {
     try {
       const prompt = this.buildPrompt(preferences);
-      const result = await this.model.generateContent(prompt);
-      const generatedText = result?.response?.text?.();
+      const model = await this.getAvailableModel();
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 2048,
+          },
+        }),
+      });
 
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}: ${errText}`);
+      }
+
+      const data = await response.json();
+      const generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      
       if (!generatedText) {
         throw new Error('No content generated from Gemini API');
       }
@@ -63,135 +108,11 @@ class GeminiService {
         throw new Error('No valid JSON found in response');
       }
 
-      const parsed = JSON.parse(jsonMatch[0]);
-      return parsed;
+      return JSON.parse(jsonMatch[0]);
     } catch (error) {
-      // 모델 미지원/404면 모델 자동 탐색 후 한 번 더 SDK 재시도
-      const isNotFound = /not found|NOT_FOUND|404/i.test(error?.message || '');
-      if (isNotFound) {
-        try {
-          const discovered = await this.pickAvailableModel();
-          if (discovered) {
-            this.modelName = discovered;
-            this.model = this.client.getGenerativeModel({ model: this.modelName });
-            const prompt = this.buildPrompt(preferences);
-            const retry = await this.model.generateContent(prompt);
-            const retryText = retry?.response?.text?.();
-            if (!retryText) throw new Error('No content generated after SDK retry');
-            const jsonMatch = retryText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('No valid JSON found after SDK retry');
-            return JSON.parse(jsonMatch[0]);
-          }
-        } catch (retryErr) {
-          console.warn('SDK retry with discovered model failed:', retryErr?.message || retryErr);
-        }
-      }
-
-      console.warn('SDK call failed, trying HTTP fallback...', error?.message || error);
-      try {
-        const fallback = await this.generateViaHttp(preferences);
-        return fallback;
-      } catch (httpError) {
-        console.error('HTTP fallback failed:', httpError);
-        return this.getDefaultLandmarks();
-      }
-    }
-  }
-
-  async generateViaHttp(preferences) {
-    const prompt = this.buildPrompt(preferences);
-    let model = 'gemini-1.5-flash';
-    let endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 2048,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      const isNotFound = /NOT_FOUND|not found|404/.test(errText) || response.status === 404;
-      if (isNotFound) {
-        const discovered = await this.pickAvailableModel();
-        if (!discovered) throw new Error(`HTTP 404 and no model discovered: ${errText}`);
-        model = discovered;
-        endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-        const retry = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.7,
-              topK: 40,
-              topP: 0.95,
-              maxOutputTokens: 2048,
-            },
-          }),
-        });
-        if (!retry.ok) {
-          const retryText = await retry.text().catch(() => '');
-          throw new Error(`HTTP retry ${retry.status}: ${retryText}`);
-        }
-        const retryData = await retry.json();
-        const retryTextOut = retryData?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!retryTextOut) throw new Error('No content generated from HTTP retry');
-        const jsonMatch = retryTextOut.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('No valid JSON found in HTTP retry response');
-        return JSON.parse(jsonMatch[0]);
-      }
-      throw new Error(`HTTP ${response.status}: ${errText}`);
-    }
-
-    const data = await response.json();
-    const generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!generatedText) {
-      throw new Error('No content generated from HTTP response');
-    }
-
-    const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No valid JSON found in HTTP response');
-    }
-
-    return JSON.parse(jsonMatch[0]);
-  }
-
-  async pickAvailableModel() {
-    try {
-      const listEndpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
-      const res = await fetch(listEndpoint);
-      if (!res.ok) return null;
-      const data = await res.json();
-      const models = data?.models || [];
-      // 우선순위: flash 최신, 그 다음 flash, 그 다음 pro 계열
-      const prefer = [
-        'flash',
-        'pro',
-      ];
-      // generateContent 지원 여부 필터링
-      const candidates = models.filter(m => Array.isArray(m?.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'));
-      // 이름 기준 정렬
-      const byPreference = (name) => prefer.findIndex(p => name.includes(p));
-      candidates.sort((a, b) => (byPreference(a.name) - byPreference(b.name)));
-      const picked = candidates[0]?.name || models[0]?.name;
-      if (!picked) return null;
-      // API는 model full name을 반환하므로 마지막 세그먼트만 사용
-      const seg = picked.split('/').pop();
-      return seg || null;
-    } catch (e) {
-      console.warn('Failed to list models:', e?.message || e);
-      return null;
+      console.warn('Gemini API 호출 실패 (429 Quota 또는 기타 에러), 기본 랜드마크 반환');
+      // Gemini API 쿼터 초과 시 기본 랜드마크를 안전하게 반환
+      return this.getDefaultLandmarks();
     }
   }
 

@@ -8,7 +8,7 @@ import { API_CONFIG } from '../utils/apiConfig';
 class KakaoMapService {
   constructor() {
     // 카카오맵 JavaScript Key
-    this.apiKey = '72dc0c88c9cea428d20cfa497813deeb';
+    this.apiKey = 'api';
   }
 
   /**
