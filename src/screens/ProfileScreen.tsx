@@ -42,8 +42,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onNavigateToLogin 
               color={COLORS.primary}
             />
           </View>
-          <Text style={styles.userName}>사용자</Text>
-          <Text style={styles.userEmail}>user@example.com</Text>
+          <Text style={styles.userName}>김선민님</Text>
+          <Text style={styles.userEmail}>ryan_lover@dshs.kr</Text>
         </View>
 
         <View style={styles.menuContainer}>

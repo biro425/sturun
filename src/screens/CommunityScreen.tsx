@@ -647,6 +647,7 @@ const styles = StyleSheet.create({
   },
   postContent: {
     fontSize: 16,
+    padding: SIZES.lg,
     color: COLORS.text,
     marginBottom: SIZES.md,
   },
