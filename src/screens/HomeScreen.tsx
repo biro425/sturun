@@ -24,8 +24,8 @@ export const HomeScreen: React.FC = () => {
           </View>
           <View style={styles.headerRight}>
             <View style={styles.welcomeContainer}>
-              <Text style={styles.welcomeText}>HELLO! 김선민님</Text>
-              <Text style={styles.dateText}>Today OCT. 22.</Text>
+              <Text style={styles.welcomeText}>환영합니다, 김선민님</Text>
+              <Text style={styles.dateText}>오늘은 날씨는 맑음입니다!</Text>
             </View>
             <View style={styles.profileContainer}>
               <View style={styles.profileImage}>
@@ -50,7 +50,7 @@ export const HomeScreen: React.FC = () => {
             <View style={styles.bannerBottom}>
               <View style={styles.bannerBottomLeft}>
                 <Ionicons name="people" size={16} color={COLORS.surface} />
-                <Text style={styles.bannerBottomText}>4000+ people joined</Text>
+                <Text style={styles.bannerBottomText}>4000+ 사람들 참여함</Text>
               </View>
               <View style={styles.bannerBottomRight}>
                 <Text style={styles.bannerBottomText}>2025.10.05 - 11.05</Text>
@@ -68,12 +68,12 @@ export const HomeScreen: React.FC = () => {
 
         {/* Your States 섹션 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your States</Text>
+          <Text style={styles.sectionTitle}>나의 상태</Text>
           <View style={styles.statesContainer}>
             <View style={styles.mainStateCard}>
               <View style={styles.stateCardHeader}>
                 <Text style={styles.stateNumber}>105</Text>
-                <Text style={styles.stateTitle}>10월 2주차 주간 활동 레이팅</Text>
+                {/* <Text style={styles.stateTitle}>10월 2주차 주간 활동 레이팅</Text> */}
                 <Ionicons name="footsteps" size={20} color={COLORS.surface} />
               </View>
               <View style={styles.stateInfo}>
@@ -82,11 +82,11 @@ export const HomeScreen: React.FC = () => {
                 <Text style={styles.stateInfoText}>총 토큰: 100 Tok.</Text>
               </View>
               <View style={styles.progressContainer}>
+                <Text style={styles.progressLabel}>주간 목표치</Text>
                 <View style={styles.progressBar}>
                   <View style={[styles.progressFill, { width: '80%' }]} />
                 </View>
-                <Text style={styles.progressText}>80%</Text>
-                <Text style={styles.progressLabel}>주간 목표치</Text>
+                <Text style={styles.progressText}>80% 완료</Text>
               </View>
             </View>
             <View style={styles.sideCards}>
@@ -95,7 +95,7 @@ export const HomeScreen: React.FC = () => {
                   <Text style={styles.sideCardTitle}>CREW</Text>
                   <View style={styles.notificationDot} />
                 </View>
-                <Text style={styles.sideCardText}>현재 10명의 크루가 당신을 기다리고 있습니다.</Text>
+                <Text style={styles.sideCardText}>현재 10명 이상의 크루가 당신을 기다리고 있습니다.</Text>
               </View>
               <View style={styles.sideCard}>
                 <View style={styles.sideCardHeader}>
@@ -113,7 +113,7 @@ export const HomeScreen: React.FC = () => {
 
         {/* Crew 섹션 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Crew</Text>
+          <Text style={styles.sectionTitle}>러닝 크루</Text>
           <View style={styles.crewContainer}>
             <View style={styles.crewCard}>
               <View style={styles.crewCardContent}>
@@ -132,9 +132,9 @@ export const HomeScreen: React.FC = () => {
                 <Text style={styles.crewTitle}>디자이너가 늦어서 개발하기 힘든 개발자들은 달린다</Text>
                 <Text style={styles.crewCount}>404/500</Text>
                 <View style={styles.hashtagContainer}>
-                  <Text style={styles.hashtag}>#송리안 시발년</Text>
-                  <Text style={styles.hashtag}>#언제주냐</Text>
-                  <Text style={styles.hashtag}>#공룡은 살아있다</Text>
+                  <Text style={styles.hashtag}>#송리안_수령_사랑해요</Text>
+                  <Text style={styles.hashtag}>#행복한_개발</Text>
+                  <Text style={styles.hashtag}>#공룡은_살아있다</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
@@ -325,10 +325,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.base,
     borderRadius: 10,
     padding: SIZES.xs,
-    aspectRatio: 1,
   },
   stateCardHeader: {
     flexDirection: 'row',
+    padding: SIZES.xs,
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: SIZES.sm,
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     color: COLORS.surface,
   },
   stateTitle: {
-    fontSize: 10,
+    fontSize: 15,
     color: COLORS.surface,
     flex: 1,
     marginHorizontal: SIZES.xs,
@@ -348,7 +348,10 @@ const styles = StyleSheet.create({
     marginBottom: SIZES.sm,
   },
   stateInfoText: {
-    fontSize: 10,
+    padding: SIZES.xs,
+    paddingBottom: 0,
+    fontSize: 13,
+    fontWeight: '600',
     color: COLORS.surface,
     marginBottom: SIZES.xs,
   },
@@ -356,7 +359,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressBar: {
-    width: '100%',
+    width: '90%',
     height: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 3,
@@ -368,12 +371,12 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   progressText: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: 'bold',
     color: COLORS.surface,
   },
   progressLabel: {
-    fontSize: 8,
+    fontSize: 11,
     color: COLORS.surface,
   },
   sideCards: {
